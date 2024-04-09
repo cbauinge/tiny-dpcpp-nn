@@ -20,6 +20,7 @@
 
 #include "DeviceMatrix.h"
 #include "common.h"
+#include "kernel_common.h"
 #include "oneapi/mkl.hpp"
 
 namespace sycl::ext::intel::esimd::xmx {
@@ -52,54 +53,6 @@ using namespace sycl::ext::intel::esimd;
 using sycl::ext::intel::experimental::esimd::cache_hint;
 using namespace sycl::ext::intel::experimental::esimd;
 using bf16 = sycl::ext::oneapi::bfloat16;
-
-/**
- * @brief Struct to decide type for accumulation (CType) for XMX at compile time,
- * depending on the given type T.
- *
- * Currently returns CType == T, except when T == bf16, then CType == float.
- *
- * @tparam T
- */
-template <typename T> struct XMXCType {
-    typedef T CType;
-};
-template <> struct XMXCType<bf16> {
-    typedef float CType;
-};
-template <> struct XMXCType<sycl::half> {
-#if TARGET_DEVICE == 0
-    typedef sycl::half CType;
-#elif TARGET_DEVICE == 1
-    typedef float CType;
-#endif
-};
-
-/**
- * @brief Struct which gives us the value to use for TN in the dpas instruction
- * Depending on the device.
- *
- */
-struct XMXTn {
-#if TARGET_DEVICE == 0
-    static constexpr int TN = 16;
-#elif TARGET_DEVICE == 1
-    static constexpr int TN = 8;
-#endif
-};
-
-/**
- * @brief Struct to give us the maximum number of bytes in a send instruction,
- * depending on the device
- *
- */
-struct XMXMaxSendBytes {
-#if TARGET_DEVICE == 0
-    static constexpr int MaxBytes = 512;
-#elif TARGET_DEVICE == 1
-    static constexpr int MaxBytes = 256;
-#endif
-};
 
 /**
  * @brief
@@ -141,11 +94,11 @@ class EsimdKernels {
         static_assert(OUTPUT_WIDTH == WIDTH);
         const size_t M = input.m();
 
-        constexpr int TM = ComputeTM();
+        constexpr int TM = ComputeTM<WIDTH>();
 
         assert(M % TM == 0);
-        const int ITEMS_IN_WG = ComputeItemsInWG(M, TM);
-        constexpr int TK = ComputeTK();
+        const int ITEMS_IN_WG = ComputeSGsInWG(M, TM);
+        constexpr int TK = ComputeTK<T>();
 
         auto e = q.submit([&](sycl::handler &cgh) {
             cgh.depends_on(deps);
@@ -463,37 +416,6 @@ class EsimdKernels {
     }
 
   private:
-    static constexpr int ComputeTM() {
-#if TARGET_DEVICE == 0
-        return 8;
-#elif TARGET_DEVICE == 1
-        if constexpr (WIDTH < 64)
-            return 8;
-        else if constexpr (WIDTH >= 64) {
-            constexpr int factor = std::max(1, WIDTH / 64); // shut up div by 0 warning
-            return std::max<int>(1, 4 / factor);
-        }
-#endif
-    }
-
-    static constexpr int ComputeTK() { return 8 * std::min<int>(8, 32 / (8 * sizeof(T))); }
-
-    static int ComputeItemsInWG(const size_t M, const int TM) {
-// TODO: 64 depends on the device. It is different for non-PVC hardware
-#if TARGET_DEVICE == 0
-        constexpr int max_items_per_wg = 64;
-#elif TARGET_DEVICE == 1
-        constexpr int max_items_per_wg = 1;
-#endif
-        int items_in_wg = std::min<int>(M / TM, max_items_per_wg);
-        while (M / TM % items_in_wg != 0) {
-            items_in_wg--;
-        }
-        if (items_in_wg <= 0) throw std::logic_error("Number of SGS per WG cannot be less than 1");
-
-        return items_in_wg;
-    }
-
     template <bool INFERENCE>
     static std::vector<sycl::event>
     forward_impl_general(sycl::queue &q, const DeviceMatricesView<T> &weights, const DeviceMatrixView<T> &input,
@@ -506,14 +428,14 @@ class EsimdKernels {
         static_assert(OUTPUT_WIDTH == WIDTH);
         static_assert(WIDTH % TN == 0);
 
-        constexpr int TM = ComputeTM();
+        constexpr int TM = ComputeTM<WIDTH>();
         // make sure there is no remainder and no out of bounds accesses
         // this may be adjusted in the future
         assert(M % TM == 0);
 
         // TK depends on the datatype T
-        constexpr int TK = ComputeTK();
-        const int ITEMS_IN_WG = ComputeItemsInWG(M, TM);
+        constexpr int TK = ComputeTK<T>();
+        const int ITEMS_IN_WG = ComputeSGsInWG(M, TM);
 
         // One Block Row has TM rows an N columns.
         auto e = q.submit([&](sycl::handler &cgh) {

@@ -19,6 +19,7 @@
 using bf16 = sycl::ext::oneapi::bfloat16;
 using sycl::ext::intel::experimental::esimd::cache_hint;
 using namespace tinydpcppnn::kernels::esimd;
+using namespace tinydpcppnn::kernels;
 using namespace sycl::ext::intel::esimd;
 
 template <int M, int N, int TK, typename T> void TestLoadRow(sycl::queue &q) {

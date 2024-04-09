@@ -22,8 +22,8 @@
 #include "DeviceMatrix.h"
 #include "Network.h"
 #include "common.h"
-// #include "kernel.h"
 #include "kernel_esimd.h"
+#include "kernel_jm.h"
 
 // Unique identifier for each activation pair
 constexpr int ActivationPairCode(Activation act, Activation out_act) {
@@ -74,6 +74,10 @@ template <typename T, int WIDTH> class SwiftNetMLP : public Network<T> {
                                           const std::vector<sycl::event> &deps) override {
 
         using namespace tinydpcppnn::kernels::esimd;
+        using namespace tinydpcppnn::kernels::jm;
+
+#define Kernels EsimdKernels
+        // #define Kernels JMKernels
 
 #define ARGS_                                                                                                          \
     Network<T>::get_queue(), Network<T>::get_weights_matrices().GetViews(), input, intermediate_output_forward,        \
@@ -82,36 +86,37 @@ template <typename T, int WIDTH> class SwiftNetMLP : public Network<T> {
         // Perform forward pass based on activation function
         switch (ActivationPairCode(m_activation, m_output_activation)) {
         case ActivationPairCode(Activation::None, Activation::None):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::None>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::None>::forward_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::ReLU, Activation::None):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::None>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::None>::forward_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::Sigmoid, Activation::None):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::None>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::None>::forward_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::None, Activation::Sigmoid):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::Sigmoid>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::Sigmoid>::forward_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::ReLU, Activation::Sigmoid):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::Sigmoid>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::Sigmoid>::forward_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::Sigmoid, Activation::Sigmoid):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::Sigmoid>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::Sigmoid>::forward_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::None, Activation::ReLU):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::ReLU>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::ReLU>::forward_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::ReLU, Activation::ReLU):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::ReLU>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::ReLU>::forward_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::Sigmoid, Activation::ReLU):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::ReLU>::forward_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::ReLU>::forward_impl(ARGS_);
             break;
         default:
             throw std::logic_error("Invalid activation should have been caught earlier.");
         }
 
+#undef Kernels
 #undef ARGS_
     }
 
@@ -133,6 +138,10 @@ template <typename T, int WIDTH> class SwiftNetMLP : public Network<T> {
                                        const std::vector<sycl::event> &deps) override {
 
         using namespace tinydpcppnn::kernels::esimd;
+        using namespace tinydpcppnn::kernels::jm;
+
+// #define Kernels EsimdKernels
+#define Kernels JMKernels
 
 #define ARGS_                                                                                                          \
     Network<T>::get_queue(), Network<T>::get_weights_matrices().GetViews(), input, output,                             \
@@ -141,37 +150,37 @@ template <typename T, int WIDTH> class SwiftNetMLP : public Network<T> {
         // Perform forward pass based on activation function
         switch (ActivationPairCode(m_activation, m_output_activation)) {
         case ActivationPairCode(Activation::None, Activation::None):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::None>::inference_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::None>::inference_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::ReLU, Activation::None):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::None>::inference_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::None>::inference_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::Sigmoid, Activation::None):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::None>::inference_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::None>::inference_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::None, Activation::ReLU):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::ReLU>::inference_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::ReLU>::inference_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::ReLU, Activation::ReLU):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::ReLU>::inference_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::ReLU>::inference_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::Sigmoid, Activation::ReLU):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::ReLU>::inference_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::ReLU>::inference_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::None, Activation::Sigmoid):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::Sigmoid>::inference_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::None, Activation::Sigmoid>::inference_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::ReLU, Activation::Sigmoid):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::Sigmoid>::inference_impl(ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::ReLU, Activation::Sigmoid>::inference_impl(ARGS_);
             break;
         case ActivationPairCode(Activation::Sigmoid, Activation::Sigmoid):
-            return EsimdKernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::Sigmoid>::inference_impl(
-                ARGS_);
+            return Kernels<T, WIDTH, WIDTH, WIDTH, Activation::Sigmoid, Activation::Sigmoid>::inference_impl(ARGS_);
             break;
         default:
             throw std::logic_error("Invalid activation should have been caught earlier.");
         }
 
+#undef Kernels
 #undef ARGS_
     }
 
